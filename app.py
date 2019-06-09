@@ -71,12 +71,6 @@ async def post_slack_status_update(slack_channel, deliveroo_state):
         assert posted.status == 200
 
 
-async def test_for_heroku():
-    for i in range(10):
-        logger.info("Hey, Heroku, I'm still alive !")
-        await asyncio.sleep(10)
-
-
 async def start_tracking(rooit_url, slack_channel, polling_period_seconds=30):
     """
     Start an async task that will track the Deliveroo order
@@ -127,7 +121,6 @@ async def on_slack_event(request):
             if link['domain'] == 'roo.it':
                 f = start_tracking(link['url'], evt['channel'])
                 asyncio.ensure_future(f)
-                asyncio.ensure_future(test_for_heroku())
 
     return web.Response(text="")
 
