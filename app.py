@@ -126,8 +126,11 @@ async def on_slack_event(request):
 
 
 if __name__ == "__main__":
+    from sys import argv
     logging.basicConfig(level=logging.INFO)
+
+    port = int(argv[1]) if len(argv) > 1 else 8000
 
     app = web.Application()
     app.add_routes([web.post('/', on_slack_event)])
-    web.run_app(app)
+    web.run_app(app, port=port)
