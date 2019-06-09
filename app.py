@@ -75,6 +75,17 @@ async def start_tracking(rooit_url, slack_channel, polling_period_seconds=30):
     """
     Start an async task that will track the Deliveroo order
     """
+    async with ClientSession() as session:
+        posted = await session.post(
+            "https://slack.com/api/chat.postMessage",
+            headers={'Authorization': 'Bearer %s' % SLACK_APP_TOKEN},
+            json={
+                'channel': slack_channel,
+                'text': "Let me track %s for you :bike:" % rooit_url
+            },
+        )
+        assert posted.status == 200
+
     logger.info("Starting to track %s", rooit_url)
     async with ClientSession(headers={'User-Agent': 'titouanc/slackiveroo'}) as session:
         tracking_url = await get_tracking_url(session, rooit_url)
