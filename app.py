@@ -11,6 +11,8 @@ from settings import SLACK_APP_TOKEN
 logger = logging.getLogger("slackiveroo")
 api_root = "https://order-status.deliveroo.net/api/v2-4"
 
+orders_being_tracked = {}
+
 
 async def get_tracking_url(session, rooit_url):
     """
@@ -71,9 +73,9 @@ async def post_slack_status_update(slack_channel, deliveroo_state):
         assert posted.status == 200
 
 
-async def start_tracking(rooit_url, slack_channel, polling_period_seconds=30):
+async def perform_tracking(rooit_url, polling_period_seconds=30):
     """
-    Start an async task that will track the Deliveroo order
+    Async task that track the Deliveroo order until complete
     """
     logger.info("Starting to track %s", rooit_url)
     async with ClientSession(headers={'User-Agent': 'titouanc/slackiveroo'}) as session:
@@ -90,7 +92,8 @@ async def start_tracking(rooit_url, slack_channel, polling_period_seconds=30):
 
             # 2. Post a status update to Slack when the user message changes
             if msg != last_msg:
-                await post_slack_status_update(slack_channel, state)
+                for chan in orders_being_tracked[rooit_url]:
+                    await post_slack_status_update(slack_channel, state)
                 logger.info("[%s] %s :: %s", rooit_url, status, msg)
                 last_msg = msg
 
@@ -101,6 +104,23 @@ async def start_tracking(rooit_url, slack_channel, polling_period_seconds=30):
 
             # 4. Then wait a bit
             await asyncio.sleep(polling_period_seconds)
+
+
+async def start_tracking(rooit_url, slack_channel):
+    if rooit_url not in orders_being_tracked:
+        orders_being_tracked[rooit_url] = set([slack_channel])
+        try:
+            await perform_tracking(rooit_url)
+        except:
+            logger.exception("Error while performing tracking of %s", rooit_url)
+        orders_being_tracked.pop(rooit_url)
+    elif slack_channel not in orders_being_tracked[rooit_url]:
+        orders_being_tracked[rooit_url].add(slack_channel)
+        logger.info("I'm already tracking %s; also post updates to %s",
+                    rooit_url, slack_channel)
+    else:
+        logger.info("I'm already tracking %s for chan %s. "
+                    "No new task will be created", rooit_url, slack_channel)
 
 
 async def on_slack_event(request):
