@@ -107,20 +107,18 @@ async def perform_tracking(rooit_url, polling_period_seconds=30):
 
 
 async def start_tracking(rooit_url, slack_channel):
-    if rooit_url not in orders_being_tracked:
-        orders_being_tracked[rooit_url] = set([slack_channel])
-        try:
-            await perform_tracking(rooit_url)
-        except:
-            logger.exception("Error while performing tracking of %s", rooit_url)
-        orders_being_tracked.pop(rooit_url)
-    elif slack_channel not in orders_being_tracked[rooit_url]:
+    if rooit_url in orders_being_tracked:
         orders_being_tracked[rooit_url].add(slack_channel)
         logger.info("I'm already tracking %s; also post updates to %s",
                     rooit_url, slack_channel)
     else:
-        logger.info("I'm already tracking %s for chan %s. "
-                    "No new task will be created", rooit_url, slack_channel)
+        orders_being_tracked[rooit_url] = set([slack_channel])
+        try:
+            await perform_tracking(rooit_url)
+        except:
+            logger.exception("Error while performing tracking of %s",
+                             rooit_url)
+        orders_being_tracked.pop(rooit_url)
 
 
 async def on_slack_event(request):
