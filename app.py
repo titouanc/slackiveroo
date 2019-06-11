@@ -93,7 +93,7 @@ async def perform_tracking(rooit_url, polling_period_seconds=30):
             # 2. Post a status update to Slack when the user message changes
             if msg != last_msg:
                 for chan in orders_being_tracked[rooit_url]:
-                    await post_slack_status_update(slack_channel, state)
+                    await post_slack_status_update(chan, state)
                 logger.info("[%s] %s :: %s", rooit_url, status, msg)
                 last_msg = msg
 
