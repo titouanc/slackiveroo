@@ -3,12 +3,15 @@ import logging
 import asyncio
 from aiohttp import web, ClientSession
 
-from settings import SLACK_APP_TOKEN
+from settings import SLACK_APP_TOKEN, SELF_QUERY_URL
 
 logger = logging.getLogger("slackiveroo")
 api_root = "https://order-status.deliveroo.net/api/v2-4"
 
 orders_being_tracked = {}
+
+def get_session():
+    return ClientSession(headers={'User-Agent': 'titouanc/slackiveroo'})
 
 
 async def get_tracking_url(session, rooit_url):
@@ -61,7 +64,7 @@ async def post_slack_status_update(slack_channel, deliveroo_state):
         }
     }
 
-    async with ClientSession() as session:
+    async with get_session() as session:
         posted = await session.post(
             "https://slack.com/api/chat.postMessage",
             headers={'Authorization': 'Bearer %s' % SLACK_APP_TOKEN},
@@ -75,7 +78,7 @@ async def perform_tracking(rooit_url, polling_period_seconds=30):
     Async task that track the Deliveroo order until complete
     """
     logger.info("Starting to track %s", rooit_url)
-    async with ClientSession(headers={'User-Agent': 'titouanc/slackiveroo'}) as session:
+    async with get_session() as session:
         tracking_url = await get_tracking_url(session, rooit_url)
         last_msg = None
         while True:
@@ -140,6 +143,22 @@ async def on_slack_event(request):
     return web.Response(text="")
 
 
+async def heroku_web_keepalive():
+    if not SELF_QUERY_URL:
+        logger.warn("No self-query URL given, Heroku keepalive is disabled")
+        return
+
+    async with get_session() as session:
+        while True:
+            page = await session.get(SELF_QUERY_URL)
+            assert page.status == 200
+            await asyncio.sleep(60)
+
+
+def on_ping(request):
+    return web.Response(text="pong")
+
+
 if __name__ == "__main__":
     from sys import argv
     logging.basicConfig(level=logging.INFO)
@@ -147,5 +166,10 @@ if __name__ == "__main__":
     port = int(argv[1]) if len(argv) > 1 else 8000
 
     app = web.Application()
-    app.add_routes([web.post('/', on_slack_event)])
+    app.add_routes([
+        web.post('/', on_slack_event),
+        web.get('/ping', on_ping)
+    ])
+
+    asyncio.ensure_future(heroku_web_keepalive())
     web.run_app(app, port=port)
