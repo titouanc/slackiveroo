@@ -1,9 +1,6 @@
 import re
-import json
 import logging
 import asyncio
-from glob import glob
-import aiohttp
 from aiohttp import web, ClientSession
 
 from settings import SLACK_APP_TOKEN
