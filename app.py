@@ -150,8 +150,9 @@ async def heroku_web_keepalive():
 
     async with get_session() as session:
         while True:
-            page = await session.get(SELF_QUERY_URL)
-            assert page.status == 200
+            if len(orders_being_tracked) > 0:
+                page = await session.get(SELF_QUERY_URL)
+                assert page.status == 200
             await asyncio.sleep(60)
 
 
