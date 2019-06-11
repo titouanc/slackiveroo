@@ -1,9 +1,11 @@
 import re
+import hmac
+import hashlib
 import logging
 import asyncio
 from aiohttp import web, ClientSession
 
-from settings import SLACK_APP_TOKEN, SELF_QUERY_URL
+import settings
 
 logger = logging.getLogger("slackiveroo")
 api_root = "https://order-status.deliveroo.net/api/v2-4"
@@ -67,7 +69,7 @@ async def post_slack_status_update(slack_channel, deliveroo_state):
     async with get_session() as session:
         posted = await session.post(
             "https://slack.com/api/chat.postMessage",
-            headers={'Authorization': 'Bearer %s' % SLACK_APP_TOKEN},
+            headers={'Authorization': 'Bearer %s' % settings.SLACK_APP_TOKEN},
             json={'channel': slack_channel, 'blocks': [message]},
         )
         assert posted.status == 200
@@ -121,6 +123,43 @@ async def start_tracking(rooit_url, slack_channel):
         orders_being_tracked.pop(rooit_url)
 
 
+def slack_sign(timestamp, message, key=settings.SLACK_SIGN_SECRET):
+    """
+    Compute the Slack Signature hash.
+    See details on https://api.slack.com/docs/verifying-requests-from-slack
+    """
+    version = 'v0'
+    msg = f'{version}:{timestamp}:{message}'
+    return version + '=' + hmac.new(
+        key=key.encode(),
+        msg=msg.encode(),
+        digestmod=hashlib.sha256,
+    ).hexdigest()
+
+
+def slack_verify_signature(func):
+    """
+    Decorator that run a view only if the Slack signature is verified
+    Otherwise, return a 403
+    """
+    async def wrapper(request, *args, **kwargs):
+        body = await request.text()
+        ts = request.headers['X-Slack-Request-Timestamp']
+        signature = slack_sign(ts, body)
+        print(signature)
+        if signature == request.headers['X-Slack-Signature']:
+            return await func(request, *args, **kwargs)
+        else:
+            logger.error(
+                "Slack request cannot be authenticated: "
+                "signature mismatch (given: %s, computed: %s)",
+                signature, request.headers['X-Slack-Signature']
+            )
+            return web.Response(text="You're not Slack", status=403)
+    return wrapper
+
+
+@slack_verify_signature
 async def on_slack_event(request):
     """
     Handler for the Slack event API (HTTP POST)
@@ -144,14 +183,17 @@ async def on_slack_event(request):
 
 
 async def heroku_web_keepalive():
-    if not SELF_QUERY_URL:
+    """
+    Hit the /ping endpoint of this webapp every 10s
+    """
+    if not settings.SELF_QUERY_URL:
         logger.warn("No self-query URL given, Heroku keepalive is disabled")
         return
 
     async with get_session() as session:
         while True:
             if len(orders_being_tracked) > 0:
-                page = await session.get(SELF_QUERY_URL)
+                page = await session.get(settings.SELF_QUERY_URL)
                 assert page.status == 200
             await asyncio.sleep(60)
 
