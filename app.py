@@ -29,7 +29,7 @@ async def get_tracking_url(session, rooit_url):
         return url.format(
             api=api_root,
             order=path.group(1),
-            token=page.url.query['sharing_token'][0]
+            token=page.url.query['sharing_token']
         )
 
 
