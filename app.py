@@ -43,7 +43,13 @@ async def post_slack_status_update(slack_channel, deliveroo_state):
     order = deliveroo_state['included'][0]['attributes']
 
     attributes = deliveroo_state['data']['attributes']
-    if 'eta_message' not in attributes:
+    if attributes['ui_status'] == 'FAILED':
+        text = "@here The order from *%s* has *FAILED* _(%s)_\n%s" % (
+            order['restaurant_name'],
+            attributes['message'],
+            order['sharing_short_url'],
+        )
+    elif 'eta_message' not in attributes:
         text = "*%s* is @here :bowl_with_spoon: !" % order['restaurant_name']
     else:
         text = "*%s*: %s\n*ETA*: %s\n%s" % (
@@ -100,8 +106,8 @@ async def perform_tracking(rooit_url, polling_period_seconds=30):
                 last_msg = msg
 
             # 3. Stop tracking when the order is delivered
-            if status == "COMPLETED":
-                logger.info("Tracking %s has ended (COMPLETE)", rooit_url)
+            if status in ('COMPLETED', 'FAILED'):
+                logger.info("Tracking %s has ended (%s)", rooit_url, status)
                 break
 
             # 4. Then wait a bit
