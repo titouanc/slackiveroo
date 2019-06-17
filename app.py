@@ -44,7 +44,7 @@ async def post_slack_status_update(slack_channel, deliveroo_state):
 
     attributes = deliveroo_state['data']['attributes']
     if attributes['ui_status'] == 'FAILED':
-        text = "@here The order from *%s* has *FAILED* _(%s)_\n%s" % (
+        text = "@here :rotating_light: The order from *%s* has *FAILED* _(%s)_\n%s" % (
             order['restaurant_name'],
             attributes['message'],
             order['sharing_short_url'],
