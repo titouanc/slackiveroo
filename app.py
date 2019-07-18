@@ -76,7 +76,11 @@ async def post_slack_status_update(slack_channel, deliveroo_state):
         posted = await session.post(
             "https://slack.com/api/chat.postMessage",
             headers={'Authorization': 'Bearer %s' % settings.SLACK_APP_TOKEN},
-            json={'channel': slack_channel, 'blocks': [message]},
+            json={
+                'channel': slack_channel,
+                'blocks': [message],
+                'text': text.split('\n')[0]
+            },
         )
         assert posted.status == 200
 
