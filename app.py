@@ -50,7 +50,7 @@ async def post_slack_status_update(slack_channel, deliveroo_state):
             order['sharing_short_url'],
         )
     elif 'eta_message' not in attributes:
-        text = "*%s* is here, @hungry people:bowl_with_spoon: !" % order['restaurant_name']
+        text = "*%s* is here, @hungry people :bowl_with_spoon: !" % order['restaurant_name']
     else:
         text = "*%s*: %s\n*ETA*: %s\n%s" % (
             order['restaurant_name'],
