@@ -1,0 +1,19 @@
+{
+    "data": {
+        "attributes": {
+            "ui_status": "PROGRESS",
+            "message": "The order is being delivered",
+            "eta_message": "15min"
+        }
+    },
+    "included": [
+        {
+            "type": "order",
+            "attributes": {
+                "restaurant_name": "Don't Panisse !",
+                "sharing_short_url": "https://roo.it/s/pan1c",
+                "image_url": "https://i0.wp.com/cuisinemicheline.com/wp-content/uploads/2014/05/P1040812.jpg"
+            }
+        }
+    ]
+}

@@ -1,0 +1,5 @@
+-r base.in
+
+pytest-aiohttp
+aiohttp-devtools
+pip-compile-multi
