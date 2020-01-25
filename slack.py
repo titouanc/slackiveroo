@@ -3,7 +3,6 @@ import hashlib
 import logging
 import aioredis
 from time import time
-from typing import Dict, List
 from aiohttp import web, ClientSession
 
 import settings
@@ -12,14 +11,24 @@ logger = logging.getLogger('slack')
 
 
 class Channel:
+    """
+    Represent a Slack channel
+    """
     def __init__(self, team_id, channel_id):
         self.team_id, self.channel_id = team_id, channel_id
-        self.token = None
+        self.token = None  # This is filled lazily from Redis
 
     def __eq__(self, other):
+        """
+        True if both channels have the same team and channel IDs
+        """
         return (self.team_id, self.channel_id) == (other.team_id, other.channel_id)
 
     async def get_token(self):
+        """
+        Get the access token to post to this channel. If not already present
+        as attribute, retrieves it from Redis
+        """
         if not self.token:
             redis = await aioredis.create_redis_pool(settings.REDIS_URL)
             self.token = await redis.hget('slackiveroo.tokens', self.team_id,
@@ -29,6 +38,9 @@ class Channel:
         return self.token
 
     async def join(self, http_session):
+        """
+        Make the app join this channel
+        """
         token = await self.get_token()
         posted = await http_session.post(
             "https://slack.com/api/conversations.join",
@@ -42,6 +54,12 @@ class Channel:
         assert response['ok'], str(response)
 
     async def post_message(self, text, blocks, http_session):
+        """
+        Post a message to this channel, with the given plain text (used in
+        desktop notifications), blocks (used in Slack app for rich display),
+        using the given http session.
+        See https://api.slack.com/methods/chat.postMessage
+        """
         token = await self.get_token()
         posted = await http_session.post(
             "https://slack.com/api/chat.postMessage",
@@ -62,21 +80,10 @@ class Channel:
 
 
 def get_http_session():
+    """
+    Create a new HTTP client session
+    """
     return ClientSession(headers={'User-Agent': 'titouanc/slackiveroo'})
-
-
-def sign_request(timestamp, message, key=settings.SLACK_SIGN_SECRET):
-    """
-    Compute the Slack Signature hash.
-    See details on https://api.slack.com/docs/verifying-requests-from-slack
-    """
-    version = 'v0'
-    msg = f'{version}:{timestamp}:{message}'
-    return version + '=' + hmac.new(
-        key=key.encode(),
-        msg=msg.encode(),
-        digestmod=hashlib.sha256,
-    ).hexdigest()
 
 
 async def get_oauth_token(grant_code):
@@ -105,16 +112,33 @@ async def get_oauth_token(grant_code):
         await redis.wait_closed()
 
 
-async def post_message(channels, text: str, blocks: List[Dict]) -> None:
+async def post_message(channels, text, blocks):
+    """
+    Post a message to a list of channels
+    """
     async with get_http_session() as session:
         for chan in channels:
             await chan.post_message(text, blocks, session)
 
 
+def sign_request(timestamp, message, key=settings.SLACK_SIGN_SECRET):
+    """
+    Compute the Slack Signature hash.
+    See details on https://api.slack.com/docs/verifying-requests-from-slack
+    """
+    version = 'v0'
+    msg = f'{version}:{timestamp}:{message}'
+    return version + '=' + hmac.new(
+        key=key.encode(),
+        msg=msg.encode(),
+        digestmod=hashlib.sha256,
+    ).hexdigest()
+
+
 def verify_signature(func):
     """
     Decorator that run a view only if the Slack signature is verified
-    Otherwise, return a 403
+    Otherwise, return a 403.
     """
     async def wrapper(request, *args, **kwargs):
         body = await request.text()

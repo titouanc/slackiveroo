@@ -1,27 +1,30 @@
 import re
 import asyncio
 import logging
-from typing import Dict, List, Tuple, Set, Type, TypeVar
 from aiohttp import ClientSession
 
 import slack
 import settings
-
-T = TypeVar('T', bound='Tracker')
 
 logger = logging.getLogger('tracker')
 api_root = "https://order-status.deliveroo.net/api/v2-4"
 
 
 class Tracker:
-    def __init__(self, tracking_url: str, *channels: str) -> None:
-        self.channels = list(channels)
-        self.completed = False
-        self.tracking_url = tracking_url
-        self.current_state = None
+    """
+    ALl the state needed to track an ongoing Deliveroo order
+    """
+    def __init__(self, tracking_url, *channels):
+        self.channels = list(channels)   # Channles to which to post status updates
+        self.completed = False           # True if the order is complete (no more tracking)
+        self.tracking_url = tracking_url # The deliveroo API tracking URL
+        self.current_state = None        # The current deliveroo status
 
     @classmethod
-    async def from_sharing_url(cls: Type[T], sharing_url: str, *channels: str):
+    async def from_sharing_url(cls, sharing_url, *channels):
+        """
+        Obtain a tracker from a sharing url (https://roo.it/s/...)
+        """
         async with slack.get_http_session() as session:
             # 1. Get client frontend page via the shortlink redirection
             page = await session.get(sharing_url)
@@ -38,18 +41,24 @@ class Tracker:
             )
             return tracker(tracking_url, *channels)
 
-    async def add_channel(self, chan: str) -> None:
+    async def add_channel(self, chan):
+        """
+        Add a channel to be notified when the order status changes
+        """
+        # 1. Do not duplicate channels
         for known_chan in self.channels:
             if chan == known_chan:
                 return
         self.channels.append(chan)
+
+        # 2. Post a status update if the status is already known
         if self.current_state is not None:
             text, blocks = self.format_slack_status_update(self.current_state)
             await slack.post_message([chan], text, blocks)
 
-    def format_slack_status_update(self, deliveroo_state: Dict) -> Tuple[str, List[Dict]]:
+    def format_slack_status_update(self, deliveroo_state):
         """
-        Format a deliveroo API response into Slack blocks, and send it
+        Format a deliveroo API response into Slack text and blocks
         """
         assert deliveroo_state['included'][0]['type'] == 'order'
         order = deliveroo_state['included'][0]['attributes']
@@ -88,7 +97,7 @@ class Tracker:
         assert page.status == 200
         return await page.json()
 
-    async def run(self, polling_period_seconds: float=15) -> None:
+    async def run(self, polling_period_seconds=15):
         """
         Async task that tracks the Deliveroo order until complete
         """
@@ -118,6 +127,13 @@ class Tracker:
 
 
 class MockingTracker(Tracker):
+    """
+    Like a tracker, but the list of deliveroo responses is predefined, using
+    the class attribute responses. Usefule in development. Example:
+    
+    class MyTracker(MockingTracker):
+        responses = [{"data": {"attributes": {"ui_status": "COMPLETED"}}}]
+    """
     def __init__(self, *args, **kwargs):
         super(MockingTracker, self).__init__(*args, **kwargs)
         self.backlog = self.responses

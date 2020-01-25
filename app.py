@@ -46,9 +46,11 @@ async def on_slack_event(request):
                     channel_id=evt['channel'],
                 )
                 if url in active_trackers:
+                    # Add channel if we already have a tracker for that order
                     tracker = active_trackers[url]
                     asyncio.ensure_future(tracker.add_channel(chan))
                 else:
+                    # Otherwise spawn a new tracker
                     t = await Tracker.from_sharing_url(url, chan)
                     active_trackers[link['url']] = t
                     asyncio.ensure_future(t.run())
@@ -57,6 +59,9 @@ async def on_slack_event(request):
 
 
 async def on_slack_oauth(request):
+    """
+    Handler for the "add to slack" OAuth callback
+    """
     grant_code = request.query['code']
     logger.info("Got OAuth grant code %s", grant_code)
     asyncio.ensure_future(slack.get_oauth_token(grant_code))
