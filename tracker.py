@@ -93,9 +93,10 @@ class Tracker:
         return text.split('\n')[0], [block]
 
     async def get_order_status(self):
-        page = await self.session.get(self.tracking_url)
-        assert page.status == 200
-        return await page.json()
+        async with slack.get_http_session() as session:
+            page = await session.get(self.tracking_url)
+            assert page.status == 200
+            return await page.json()
 
     async def run(self, polling_period_seconds=15):
         """
