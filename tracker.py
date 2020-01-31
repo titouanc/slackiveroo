@@ -39,7 +39,7 @@ class Tracker:
                 order=path.group(1),
                 token=page.url.query['sharing_token']
             )
-            return tracker(tracking_url, *channels)
+            return cls(tracking_url, *channels)
 
     async def add_channel(self, chan):
         """
